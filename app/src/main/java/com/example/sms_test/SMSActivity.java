@@ -214,27 +214,21 @@ public class SMSActivity extends Activity {
         try {
             // Step 1: Encrypt the message with the pre-shared key
             byte[] encryptedMessage = encryptMessage(message, SECRET_KEY);
-            Log.d("Message: ", String.valueOf(message));
-            Log.d("encryptedMessage: ", Arrays.toString(encryptedMessage));
 
             // Step 2: Encode the encrypted message in Base64
             String base64EncodedMessage = Base64.encodeToString(encryptedMessage, Base64.DEFAULT);
-            Log.d("base64EncodedMessage: ", String.valueOf(base64EncodedMessage));
 
             // Step 3: URL-encode the Base64 encoded message
             String payload = Uri.encode(base64EncodedMessage);
-            Log.d("URL-Encoded Message: ", String.valueOf(payload));
 
             // Step 4: Craft a fake URL domain
             String domain = "http://example.com/";
 
             // Step 5: Append the payload to the fake URL domain to create the full URL
             String fullUrl = domain + payload;
-            Log.d("Full URL: ", fullUrl);
 
             // Step 6: Shorten the URL (You need to implement your URL shortening logic here)
             String shortenedUrl = shortenUrl(fullUrl);
-            Log.d("Shortened URL: ", shortenedUrl);
 
             // Step 7: Send the shortened URL as the message body of the SMS
             SmsManager smsManager = SmsManager.getDefault();
@@ -260,9 +254,7 @@ public class SMSActivity extends Activity {
     private void handleReceivedSms(String messageBody) {
         try {
             // Step 1: Attempt to extract the shortened URL from the message body
-
-            // Log the received URL for debugging purposes
-            Log.d("Received URL: ", String.valueOf(messageBody));
+            // TODO
 
             // Step 2: Attempt to restore the shortened URL to the full URL
             String fullUrl = restoreShortenedUrl(messageBody);
@@ -273,7 +265,7 @@ public class SMSActivity extends Activity {
 
             // Step 3: Attempt to extract the payload from the full URL
             String payload = extractPayloadFromUrl(fullUrl);
-            Log.d("Payload: ", String.valueOf(payload));
+
             if (payload == null) {
                 // Failure indicates it's not a covert message or malformed covert message, ignore the message
                 return;
@@ -281,11 +273,9 @@ public class SMSActivity extends Activity {
 
             // Step 4: Decode the payload (Base64 decoding)
             byte[] decodedPayload = Base64.decode(payload, Base64.DEFAULT);
-            Log.d("Decoded Payload: ", Arrays.toString(decodedPayload));
 
             // Step 5: Decrypt the decoded payload with the pre-shared key
             String decryptedMessage = decryptMessage(decodedPayload, SECRET_KEY);
-            Log.d("Decrypted Message: ", String.valueOf(decryptedMessage));
 
             // Display the message to the user using resource strings with placeholders
             receivedMessageTextView.setText(messageBody);
@@ -366,8 +356,6 @@ public class SMSActivity extends Activity {
         try {
             // Step 1: Convert the key into a byte array
             byte[] keyData = key.getBytes(StandardCharsets.UTF_8);
-            Log.d("key: ", key);
-            Log.d("keyData: ", Arrays.toString(keyData));
 
             // Step 2: Create a MessageDigest instance for the SHA-256 algorithm
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -378,7 +366,7 @@ public class SMSActivity extends Activity {
             // Step 4: Return the first 16 bytes of the hashed key
             // to obtain a valid AES key of length 128 bits respectively.
             byte[] finalKey = Arrays.copyOf(hashedKey, 16); // AES-128 key (16 bytes)
-            Log.d("Final Key: ", Arrays.toString(finalKey));
+
             return finalKey;
         } catch (Exception e) {
             Log.e("Key Generation Error", e.getMessage(), e);
