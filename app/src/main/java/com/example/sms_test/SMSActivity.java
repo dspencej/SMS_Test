@@ -365,9 +365,8 @@ public class SMSActivity extends Activity {
 
             // Step 4: Return the first 16 bytes of the hashed key
             // to obtain a valid AES key of length 128 bits respectively.
-            byte[] finalKey = Arrays.copyOf(hashedKey, 16); // AES-128 key (16 bytes)
 
-            return finalKey;
+            return Arrays.copyOf(hashedKey, 16);
         } catch (Exception e) {
             Log.e("Key Generation Error", e.getMessage(), e);
             e.printStackTrace();
