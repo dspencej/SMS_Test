@@ -20,7 +20,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.SMS_Test">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -29,11 +28,17 @@
             </intent-filter>
         </activity>
 
-        <!-- Add a new activity for sending and receiving SMS messages -->
+        <!-- Add the activity for sending and receiving SMS messages -->
         <activity
             android:name=".SMSActivity"
             android:label="SMS"
-            android:theme="@style/Theme.SMS_Test" />
+            android:theme="@style/Theme.SMS_Test"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_SMS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
     </application>
 

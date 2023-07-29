@@ -30,10 +30,16 @@
         android:hint="Enter message" />
 
     <Button
-        android:id="@+id/send_button"
+        android:id="@+id/send_regular_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Send" />
+        android:text="Send Regular SMS" />
+
+    <Button
+        android:id="@+id/send_covert_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Send Covert SMS" />
 
     <Button
         android:id="@+id/clear_button"

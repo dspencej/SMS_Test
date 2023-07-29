@@ -7,6 +7,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.util.Base64;
+import android.util.Log;
 import android.os.Bundle;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
@@ -26,6 +29,12 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
+import java.security.SecureRandom;
+import java.util.Arrays;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+
 public class SMSActivity extends Activity {
 
     private static final int PERMISSION_REQUEST_RECEIVE_SMS = 123;
@@ -35,7 +44,13 @@ public class SMSActivity extends Activity {
     private EditText phoneNumberEditText;
     private EditText messageEditText;
     private Button sendButton;
+    private Button sendRegularButton;
+    private Button sendCovertButton;
     private Button clearButton;
+
+    // Sample pre-shared key (for demo purposes, replace this with the actual secret key)
+    private static final String SECRET_KEY = "ThisIsASecretKey123";
+
 
     private BroadcastReceiver smsReceiver = new BroadcastReceiver() {
         @Override
@@ -45,29 +60,11 @@ public class SMSActivity extends Activity {
                 if (bundle != null) {
                     Object[] pdus = (Object[]) bundle.get("pdus");
                     if (pdus != null) {
-                        StringBuilder headerBuilder = new StringBuilder();
                         for (Object pdu : pdus) {
                             SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) pdu);
-
-                            // Extract header information
-                            String originatingAddress = smsMessage.getOriginatingAddress();
-                            String timestamp = formatTimestamp(smsMessage.getTimestampMillis());
-                            String protocol = String.valueOf(smsMessage.getProtocolIdentifier());
-                            String displayOriginatingAddress = smsMessage.getDisplayOriginatingAddress();
                             String messageBody = smsMessage.getMessageBody();
-
-                            // Build the header information string
-                            headerBuilder.append("Originating Address: ").append(originatingAddress).append("\n");
-                            headerBuilder.append("Timestamp: ").append(timestamp).append("\n");
-                            headerBuilder.append("Protocol: ").append(protocol).append("\n");
-                            headerBuilder.append("Display Originating Address: ").append(displayOriginatingAddress).append("\n");
-                            headerBuilder.append("Message Body: ").append(messageBody).append("\n\n");
+                            handleReceivedSms(messageBody);
                         }
-
-                        // Append the received header information to the existing text view content
-                        String existingContent = headerTextView.getText().toString();
-                        String newContent = headerBuilder.toString() + existingContent;
-                        headerTextView.setText(newContent);
                     }
                 }
             }
@@ -82,7 +79,8 @@ public class SMSActivity extends Activity {
         headerTextView = findViewById(R.id.header_text_view);
         phoneNumberEditText = findViewById(R.id.phone_number_edit_text);
         messageEditText = findViewById(R.id.message_edit_text);
-        sendButton = findViewById(R.id.send_button);
+        sendRegularButton = findViewById(R.id.send_regular_button);
+        sendCovertButton = findViewById(R.id.send_covert_button);
         clearButton = findViewById(R.id.clear_button);
 
         // Check and request permission to receive SMS
@@ -104,13 +102,26 @@ public class SMSActivity extends Activity {
                     PERMISSION_REQUEST_SEND_SMS);
         }
 
-        sendButton.setOnClickListener(new View.OnClickListener() {
+        sendRegularButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String phoneNumber = phoneNumberEditText.getText().toString();
                 String message = messageEditText.getText().toString();
                 if (!phoneNumber.isEmpty() && !message.isEmpty()) {
-                    sendSMS(phoneNumber, message);
+                    sendRegularSMS(phoneNumber, message);
+                } else {
+                    Toast.makeText(SMSActivity.this, "Please enter a phone number and message", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        sendCovertButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String phoneNumber = phoneNumberEditText.getText().toString();
+                String message = messageEditText.getText().toString();
+                if (!phoneNumber.isEmpty() && !message.isEmpty()) {
+                    sendCovertSMS(phoneNumber, message);
                 } else {
                     Toast.makeText(SMSActivity.this, "Please enter a phone number and message", Toast.LENGTH_SHORT).show();
                 }
@@ -152,7 +163,6 @@ public class SMSActivity extends Activity {
         registerReceiver(smsReceiver, filter);
     }
 
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -166,49 +176,132 @@ public class SMSActivity extends Activity {
         unregisterReceiver(smsReceiver);
     }
 
-    private void sendSMS(String phoneNumber, String message) {
+
+    private void sendRegularSMS(String phoneNumber, String message) {
         try {
             SmsManager smsManager = SmsManager.getDefault();
-
-            // Divide the message into parts if it exceeds the maximum SMS message length
-            ArrayList<String> parts = smsManager.divideMessage(message);
-            int numParts = parts.size();
-            ArrayList<PendingIntent> sentIntents = new ArrayList<>();
-            ArrayList<PendingIntent> deliveryIntents = new ArrayList<>();
-
-            for (int i = 0; i < numParts; i++) {
-                sentIntents.add(null);
-                deliveryIntents.add(null);
-            }
-
-            smsManager.sendMultipartTextMessage(phoneNumber, null, parts, sentIntents, deliveryIntents);
-
-            // Build the outgoing header information string
-            StringBuilder headerBuilder = new StringBuilder();
-            headerBuilder.append("Outgoing Message\n");
-            headerBuilder.append("Destination Address: ").append(phoneNumber).append("\n");
-            headerBuilder.append("Timestamp: ").append(getCurrentTimestamp()).append("\n");
-            headerBuilder.append("Message Body: ").append(message).append("\n\n");
-
-            // Append the outgoing header information to the existing text view content
-            String existingContent = headerTextView.getText().toString();
-            String newContent = headerBuilder.toString() + existingContent;
-            headerTextView.setText(newContent);
-
-            Toast.makeText(this, "SMS sent successfully", Toast.LENGTH_SHORT).show();
+            smsManager.sendTextMessage(phoneNumber, null, message, null, null);
+            Toast.makeText(this, "Regular SMS sent successfully", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(this, "Failed to send SMS", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Failed to send Regular SMS", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
         }
     }
 
-    private String formatTimestamp(long timestampMillis) {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-        Date date = new Date(timestampMillis);
-        return dateFormat.format(date);
+    private void sendCovertSMS(String phoneNumber, String message) {
+        try {
+            // Step 1: Encrypt the message with the pre-shared key
+            byte[] encryptedMessage = encryptMessage(message, SECRET_KEY);
+
+            // Step 2: Encode the encrypted message in Base64
+            String base64EncodedMessage = Base64.encodeToString(encryptedMessage, Base64.DEFAULT);
+
+            // Step 3: URL-encode the Base64 encoded message
+            String payload = Uri.encode(base64EncodedMessage);
+
+            // Step 4: Craft a fake URL domain
+            String domain = "http://example.com/";
+
+            // Step 5: Append the payload to the fake URL domain to create the full URL
+            String fullUrl = domain + payload;
+
+            // Step 6: Shorten the URL (You need to implement your URL shortening logic here)
+            String shortenedUrl = shortenUrl(fullUrl);
+
+            // Step 7: Send the shortened URL as the message body of the SMS
+            SmsManager smsManager = SmsManager.getDefault();
+            smsManager.sendTextMessage(phoneNumber, null, shortenedUrl, null, null);
+
+            Toast.makeText(this, "Covert SMS sent successfully", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Failed to send Covert SMS", Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
+        }
     }
 
-    private String getCurrentTimestamp() {
-        return formatTimestamp(System.currentTimeMillis());
+    private void handleReceivedSms(String messageBody) {
+        try {
+            // Step 1: Attempt to extract the shortened URL from the message body
+            String shortenedUrl = extractShortenedUrl(messageBody);
+
+            if (shortenedUrl == null) {
+                // Failure indicates it's not a covert message, ignore the message
+                // Display the decrypted message to the user
+                headerTextView.setText("Received Message: " + messageBody);
+                return;
+            }
+
+            // Step 2: Attempt to restore the shortened URL to the full URL
+            String fullUrl = restoreShortenedUrl(shortenedUrl);
+
+            if (fullUrl == null) {
+                // Failure indicates it's not a covert message or malformed covert message, ignore the message
+                return;
+            }
+
+            // Step 3: Attempt to extract the payload from the full URL
+            String payload = extractPayloadFromUrl(fullUrl);
+
+            if (payload == null) {
+                // Failure indicates it's not a covert message or malformed covert message, ignore the message
+                return;
+            }
+
+            // Step 4: Decode the payload (Base64 decoding)
+            byte[] decodedPayload = Base64.decode(payload, Base64.DEFAULT);
+
+            // Step 5: Decrypt the decoded payload with the pre-shared key
+            String decryptedMessage = decryptMessage(decodedPayload, SECRET_KEY);
+
+            // Display the decrypted message to the user
+            headerTextView.setText("Decrypted Message: " + decryptedMessage);
+
+        } catch (Exception e) {
+            Log.e("SMSActivity", "Failed to handle received SMS", e);
+        }
+    }
+
+
+    // The following methods should be updated
+    private String shortenUrl(String url) {
+        // TODO
+        // Implement the URL shortening logic here
+        // Return the shortened URL
+        return "http://short.url/" + new SecureRandom().nextInt(1000);
+    }
+
+    private String extractShortenedUrl(String messageBody) {
+        // TODO
+        // Implement the logic to extract the shortened URL from the message body
+        // Return null if the message is not a covert message
+        return "http://short.url/abc123";
+    }
+
+    private String restoreShortenedUrl(String shortenedUrl) {
+        // TODO
+        // Implement the logic to restore the shortened URL to the full URL
+        // Return null if the message is not a covert message or if the shortened URL is invalid
+        return "http://example.com/encoded_payload_here";
+    }
+
+    private String extractPayloadFromUrl(String fullUrl) {
+        // TODO
+        // Implement the logic to extract the payload from the full URL
+        // Return null if the message is not a covert message or if the full URL is invalid
+        return "encoded_payload_here";
+    }
+
+    private byte[] encryptMessage(String message, String key) {
+        // TODO
+        // Implement the encryption algorithm here using the provided key
+        // Return the encrypted data
+        return message.getBytes();
+    }
+
+    private String decryptMessage(byte[] data, String key) {
+        // TODO
+        // Implement the decryption algorithm here using the provided key
+        // Return the decrypted message as a string
+        return new String(data);
     }
 }
