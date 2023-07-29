@@ -1,3 +1,12 @@
 <resources>
-    <string name="app_name">SMS_Test</string>
+    <string name="app_name">SMS URL Encoder</string>
+    <string name="label_phone_number">Phone Number</string>
+    <string name="label_enter_phone_number">Enter phone number</string>
+    <string name="label_message">Message</string>
+    <string name="label_enter_message">Enter message</string>
+    <string name="label_send_regular_sms">Send Regular SMS</string>
+    <string name="label_send_covert_sms">Send Covert SMS</string>
+    <string name="label_clear">Clear</string>
+    <string name="label_received_message">Received Message</string>
+    <string name="label_decrypted_message">Decrypted Message</string>
 </resources>

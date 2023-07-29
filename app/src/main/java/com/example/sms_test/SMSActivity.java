@@ -8,38 +8,39 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.util.Base64;
-import android.util.Log;
 import android.os.Bundle;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
-import android.view.View;
+import android.util.Base64;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.net.URLDecoder;
-import java.security.MessageDigest;
+
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Arrays;
+
 import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 
 public class SMSActivity extends Activity {
 
     private static final int PERMISSION_REQUEST_RECEIVE_SMS = 123;
     private static final int PERMISSION_REQUEST_SEND_SMS = 456;
 
-    private TextView headerTextView;
+    private TextView receivedMessageTextView;
+    private TextView decryptedMessageTextView;
     private EditText phoneNumberEditText;
     private EditText messageEditText;
-    private Button sendRegularButton;
-    private Button sendCovertButton;
-    private Button clearButton;
 
     // Sample pre-shared key (for demo purposes, replace this with the actual secret key)
     private static final String SECRET_KEY = "ThisIsASecretKey123";
@@ -47,7 +48,7 @@ public class SMSActivity extends Activity {
     /**
      * BroadcastReceiver for handling incoming SMS messages.
      */
-    private BroadcastReceiver smsReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver smsReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             // Check if the received intent corresponds to an SMS message
@@ -81,12 +82,13 @@ public class SMSActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sms);
 
-        headerTextView = findViewById(R.id.header_text_view);
+        receivedMessageTextView = findViewById(R.id.received_message_text_view);
+        decryptedMessageTextView = findViewById(R.id.decrypted_message_text_view);
         phoneNumberEditText = findViewById(R.id.phone_number_edit_text);
         messageEditText = findViewById(R.id.message_edit_text);
-        sendRegularButton = findViewById(R.id.send_regular_button);
-        sendCovertButton = findViewById(R.id.send_covert_button);
-        clearButton = findViewById(R.id.clear_button);
+        Button sendRegularButton = findViewById(R.id.send_regular_button);
+        Button sendCovertButton = findViewById(R.id.send_covert_button);
+        Button clearButton = findViewById(R.id.clear_button);
 
         // Check and request permission to receive SMS
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS)
@@ -107,37 +109,29 @@ public class SMSActivity extends Activity {
                     PERMISSION_REQUEST_SEND_SMS);
         }
 
-        sendRegularButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String phoneNumber = phoneNumberEditText.getText().toString();
-                String message = messageEditText.getText().toString();
-                if (!phoneNumber.isEmpty() && !message.isEmpty()) {
-                    sendRegularSMS(phoneNumber, message);
-                } else {
-                    Toast.makeText(SMSActivity.this, "Please enter a phone number and message", Toast.LENGTH_SHORT).show();
-                }
+        sendRegularButton.setOnClickListener(v -> {
+            String phoneNumber = phoneNumberEditText.getText().toString();
+            String message = messageEditText.getText().toString();
+            if (!phoneNumber.isEmpty() && !message.isEmpty()) {
+                sendRegularSMS(phoneNumber, message);
+            } else {
+                Toast.makeText(SMSActivity.this, "Please enter a phone number and message", Toast.LENGTH_SHORT).show();
             }
         });
 
-        sendCovertButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String phoneNumber = phoneNumberEditText.getText().toString();
-                String message = messageEditText.getText().toString();
-                if (!phoneNumber.isEmpty() && !message.isEmpty()) {
-                    sendCovertSMS(phoneNumber, message);
-                } else {
-                    Toast.makeText(SMSActivity.this, "Please enter a phone number and message", Toast.LENGTH_SHORT).show();
-                }
+        sendCovertButton.setOnClickListener(v -> {
+            String phoneNumber = phoneNumberEditText.getText().toString();
+            String message = messageEditText.getText().toString();
+            if (!phoneNumber.isEmpty() && !message.isEmpty()) {
+                sendCovertSMS(phoneNumber, message);
+            } else {
+                Toast.makeText(SMSActivity.this, "Please enter a phone number and message", Toast.LENGTH_SHORT).show();
             }
         });
 
-        clearButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                headerTextView.setText("");
-            }
+        clearButton.setOnClickListener(v -> {
+            receivedMessageTextView.setText("");
+            decryptedMessageTextView.setText("");
         });
     }
 
@@ -219,10 +213,9 @@ public class SMSActivity extends Activity {
     private void sendCovertSMS(String phoneNumber, String message) {
         try {
             // Step 1: Encrypt the message with the pre-shared key
-            Context context = SMSActivity.this;
-            byte[] encryptedMessage = encryptMessage(message, SECRET_KEY, context);
+            byte[] encryptedMessage = encryptMessage(message, SECRET_KEY);
             Log.d("Message: ", String.valueOf(message));
-            Log.d("encryptedMessage: ", String.valueOf(encryptedMessage));
+            Log.d("encryptedMessage: ", Arrays.toString(encryptedMessage));
 
             // Step 2: Encode the encrypted message in Base64
             String base64EncodedMessage = Base64.encodeToString(encryptedMessage, Base64.DEFAULT);
@@ -237,16 +230,16 @@ public class SMSActivity extends Activity {
 
             // Step 5: Append the payload to the fake URL domain to create the full URL
             String fullUrl = domain + payload;
-            Log.d("Full URL: ", String.valueOf(fullUrl));
+            Log.d("Full URL: ", fullUrl);
 
             // Step 6: Shorten the URL (You need to implement your URL shortening logic here)
             String shortenedUrl = shortenUrl(fullUrl);
-            Log.d("Shortened URL: ", String.valueOf(shortenedUrl));
+            Log.d("Shortened URL: ", shortenedUrl);
 
             // Step 7: Send the shortened URL as the message body of the SMS
             SmsManager smsManager = SmsManager.getDefault();
             // smsManager.sendTextMessage(phoneNumber, null, shortenedUrl, null, null);
-            smsManager.sendTextMessage(phoneNumber, null, String.valueOf(fullUrl), null, null);
+            smsManager.sendTextMessage(phoneNumber, null, fullUrl, null, null);
             Toast.makeText(this, "Covert SMS sent successfully", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             // Handle any exceptions that occur during the covert SMS sending process
@@ -267,13 +260,12 @@ public class SMSActivity extends Activity {
     private void handleReceivedSms(String messageBody) {
         try {
             // Step 1: Attempt to extract the shortened URL from the message body
-            String shortenedUrl = messageBody;
 
             // Log the received URL for debugging purposes
-            Log.d("Received URL: ", String.valueOf(shortenedUrl));
+            Log.d("Received URL: ", String.valueOf(messageBody));
 
             // Step 2: Attempt to restore the shortened URL to the full URL
-            String fullUrl = restoreShortenedUrl(shortenedUrl);
+            String fullUrl = restoreShortenedUrl(messageBody);
             if (fullUrl == null) {
                 // Failure indicates it's not a covert message or malformed covert message, ignore the message
                 return;
@@ -289,15 +281,15 @@ public class SMSActivity extends Activity {
 
             // Step 4: Decode the payload (Base64 decoding)
             byte[] decodedPayload = Base64.decode(payload, Base64.DEFAULT);
-            Log.d("Decoded Payload: ", String.valueOf(decodedPayload));
+            Log.d("Decoded Payload: ", Arrays.toString(decodedPayload));
 
             // Step 5: Decrypt the decoded payload with the pre-shared key
-            Context context = SMSActivity.this;
-            String decryptedMessage = decryptMessage(decodedPayload, SECRET_KEY, context);
+            String decryptedMessage = decryptMessage(decodedPayload, SECRET_KEY);
             Log.d("Decrypted Message: ", String.valueOf(decryptedMessage));
 
-            // Display the decrypted message to the user
-            headerTextView.setText("Decrypted Message: " + decryptedMessage);
+            // Display the message to the user using resource strings with placeholders
+            receivedMessageTextView.setText(messageBody);
+            decryptedMessageTextView.setText(decryptedMessage);
 
         } catch (Exception e) {
             Log.e("SMSActivity", "Failed to handle received SMS", e);
@@ -373,9 +365,9 @@ public class SMSActivity extends Activity {
     private byte[] getValidAESKey(String key) {
         try {
             // Step 1: Convert the key into a byte array
-            byte[] keyData = key.getBytes("UTF-8");
-            Log.d("key: ", String.valueOf(key));
-            Log.d("keyData: ", String.valueOf(keyData));
+            byte[] keyData = key.getBytes(StandardCharsets.UTF_8);
+            Log.d("key: ", key);
+            Log.d("keyData: ", Arrays.toString(keyData));
 
             // Step 2: Create a MessageDigest instance for the SHA-256 algorithm
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -386,7 +378,7 @@ public class SMSActivity extends Activity {
             // Step 4: Return the first 16 bytes of the hashed key
             // to obtain a valid AES key of length 128 bits respectively.
             byte[] finalKey = Arrays.copyOf(hashedKey, 16); // AES-128 key (16 bytes)
-            Log.d("Final Key: ", String.valueOf(finalKey));
+            Log.d("Final Key: ", Arrays.toString(finalKey));
             return finalKey;
         } catch (Exception e) {
             Log.e("Key Generation Error", e.getMessage(), e);
@@ -401,9 +393,8 @@ public class SMSActivity extends Activity {
      * @param message The message to be encrypted.
      * @param key     The encryption key (should be a string representation of the key).
      * @return The encrypted data as a byte array.
-     * @throws Exception If there is an error during the encryption process.
      */
-    private byte[] encryptMessage(String message, String key, Context context) {
+    private byte[] encryptMessage(String message, String key) {
         try {
             // Get the valid AES key
             byte[] validKey = getValidAESKey(key);
@@ -412,14 +403,26 @@ public class SMSActivity extends Activity {
                 // Convert the valid key into a SecretKeySpec object for AES encryption
                 SecretKeySpec secretKeySpec = new SecretKeySpec(validKey, "AES");
 
-                // Initialize the Cipher with AES algorithm
-                Cipher cipher = Cipher.getInstance("AES");
+                // Initialize the Cipher with AES/CBC/PKCS5Padding
+                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
 
-                // Initialize the Cipher in ENCRYPT_MODE using the provided key
-                cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
+                // Generate an Initialization Vector (IV)
+                byte[] iv = new byte[cipher.getBlockSize()];
+                SecureRandom secureRandom = new SecureRandom();
+                secureRandom.nextBytes(iv);
+
+                // Initialize the Cipher in ENCRYPT_MODE using the provided key and IV
+                cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, new IvParameterSpec(iv));
 
                 // Encrypt the message by converting the message string to bytes and performing the encryption
-                return cipher.doFinal(message.getBytes("UTF-8"));
+                byte[] encryptedData = cipher.doFinal(message.getBytes(StandardCharsets.UTF_8));
+
+                // Combine the IV and encrypted data into a single byte array
+                byte[] combinedData = new byte[iv.length + encryptedData.length];
+                System.arraycopy(iv, 0, combinedData, 0, iv.length);
+                System.arraycopy(encryptedData, 0, combinedData, iv.length, encryptedData.length);
+
+                return combinedData;
             } else {
                 return null; // Return null to indicate encryption failure
             }
@@ -437,9 +440,8 @@ public class SMSActivity extends Activity {
      * @param data The encrypted data as a byte array.
      * @param key  The decryption key (should be a string representation of the key).
      * @return The decrypted message as a string.
-     * @throws Exception If there is an error during the decryption process.
      */
-    private String decryptMessage(byte[] data, String key, Context context) {
+    private String decryptMessage(byte[] data, String key) {
         try {
             // Get the valid AES key
             byte[] validKey = getValidAESKey(key);
@@ -448,14 +450,18 @@ public class SMSActivity extends Activity {
                 // Convert the valid key into a SecretKeySpec object for AES encryption
                 SecretKeySpec secretKeySpec = new SecretKeySpec(validKey, "AES");
 
-                // Initialize the Cipher with AES algorithm
-                Cipher cipher = Cipher.getInstance("AES");
+                // Initialize the Cipher with AES/CBC/PKCS5Padding
+                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
 
-                // Initialize the Cipher in DECRYPT_MODE using the provided key
-                cipher.init(Cipher.DECRYPT_MODE, secretKeySpec);
+                // Separate the IV and encrypted data from the combined data byte array
+                byte[] iv = Arrays.copyOfRange(data, 0, cipher.getBlockSize());
+                byte[] encryptedData = Arrays.copyOfRange(data, cipher.getBlockSize(), data.length);
+
+                // Initialize the Cipher in DECRYPT_MODE using the provided key and IV
+                cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, new IvParameterSpec(iv));
 
                 // Decrypt the data by performing the decryption on the encrypted byte array
-                byte[] decryptedData = cipher.doFinal(data);
+                byte[] decryptedData = cipher.doFinal(encryptedData);
 
                 // Convert the decrypted byte array to a string and return it
                 return new String(decryptedData, StandardCharsets.UTF_8);
