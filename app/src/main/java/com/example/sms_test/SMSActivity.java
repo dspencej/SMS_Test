@@ -1,6 +1,7 @@
 package com.example.sms_test;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -8,6 +9,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
@@ -22,6 +24,11 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -44,6 +51,40 @@ public class SMSActivity extends Activity {
 
     // Sample pre-shared key (for demo purposes, replace this with the actual secret key)
     private static final String SECRET_KEY = "ThisIsASecretKey123";
+
+    /**
+     * AsyncTask to shorten the URL using a background thread.
+     */
+    @SuppressLint("StaticFieldLeak")
+    private class ShortenUrlTask extends AsyncTask<String, Void, String> {
+        private final String phoneNumber;
+
+        public ShortenUrlTask(String phoneNumber) {
+            this.phoneNumber = phoneNumber;
+        }
+
+        @Override
+        protected String doInBackground(String... params) {
+            String fullUrl = params[0];
+            String payload = params[1];
+            return shortenUrl(fullUrl, payload);
+        }
+
+        @Override
+        protected void onPostExecute(String shortenedUrl) {
+            if (shortenedUrl != null) {
+                // Handle the shortened URL, update UI, etc.
+                // For example, send the shortened URL as the message body of the SMS.
+                SmsManager smsManager = SmsManager.getDefault();
+                smsManager.sendTextMessage(phoneNumber, null, shortenedUrl, null, null);
+                Toast.makeText(SMSActivity.this, "Covert SMS sent successfully", Toast.LENGTH_SHORT).show();
+            } else {
+                // Handle the failure case if needed
+                Toast.makeText(SMSActivity.this, "Failed to shorten URL", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
 
     /**
      * BroadcastReceiver for handling incoming SMS messages.
@@ -221,20 +262,15 @@ public class SMSActivity extends Activity {
             // Step 3: URL-encode the Base64 encoded message
             String payload = Uri.encode(base64EncodedMessage);
 
-            // Step 4: Craft a fake URL domain
-            String domain = "http://example.com/";
+            // Step 4: Craft a URL domain - hardcoded to google for our purposes
+            String domain = "http://google.com/";
 
             // Step 5: Append the payload to the fake URL domain to create the full URL
             String fullUrl = domain + payload;
 
-            // Step 6: Shorten the URL (You need to implement your URL shortening logic here)
-            String shortenedUrl = shortenUrl(fullUrl);
+            // Steps 6 and 7: Shorten the URL using AsyncTask and send the SMS
+            new ShortenUrlTask(phoneNumber).execute(fullUrl, payload);
 
-            // Step 7: Send the shortened URL as the message body of the SMS
-            SmsManager smsManager = SmsManager.getDefault();
-            // smsManager.sendTextMessage(phoneNumber, null, shortenedUrl, null, null);
-            smsManager.sendTextMessage(phoneNumber, null, fullUrl, null, null);
-            Toast.makeText(this, "Covert SMS sent successfully", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             // Handle any exceptions that occur during the covert SMS sending process
 
@@ -290,17 +326,85 @@ public class SMSActivity extends Activity {
     /**
      * Shorten the given URL using a URL shortening service.
      *
-     * @param url The URL to be shortened.
+     * @param fullUrl The URL to be shortened.
+     * @param payload the encrypted payload.
      * @return The shortened URL.
      */
-    private String shortenUrl(String url) {
-        // TODO: Implement the URL shortening logic here
+    private String shortenUrl(String fullUrl, String payload) {
+        //source: https://www.baeldung.com/httpurlconnection-post
+        //custom alias for this message - recommend setting it to first 10 chars of encrypted message
 
-        // Generate a random number between 0 and 999 (inclusive) to create a unique-looking URL
-        int randomSuffix = new SecureRandom().nextInt(1000);
+        String alias = payload.substring(0, 10);
+        //"{\n    \"url\": \"https://www.google.com\",\n    \"alias\": \"google\"\n}"
+        String request_body = "{\n    \"url\": \"".concat(fullUrl).concat("\",\n    \"alias\": \"".concat(alias).concat("\"\n}"));
 
-        // Return the shortened URL with the random suffix
-        return "http://short.url/" + randomSuffix;
+        URL url;
+        String response_string;
+        HttpURLConnection connection;
+
+        try {
+            url = new URL("https://url-shortener23.p.rapidapi.com/shorten");
+        } catch (Exception e)   {
+            // Handle any exceptions that occur during the shortening process
+            Log.e("URL Shortening Error", e.getMessage(), e);
+
+            // Display an error message to the user using showToast function
+            showToast("URL Shortening Error: " + e.getMessage());
+
+            // Return null to indicate shortening failure
+            return null;
+        }
+        try {
+            connection = (HttpURLConnection)url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("content-type", "application/json");
+            connection.setRequestProperty("X-RapidAPI-Key", "6644b5ebe7mshc082f2d4a9b5ff6p1521bfjsn2c31ab970604");
+            connection.setRequestProperty("X-RapidAPI-Host", "url-shortener23.p.rapidapi.com");
+            connection.setDoOutput(true);
+        } catch (Exception e)   {
+            // Handle any exceptions that occur when establishing the http connection
+            Log.e("HTTP Connection Error", e.getMessage(), e);
+
+            // Display an error message to the user using showToast function
+            showToast("HTTP Connection Error: " + e.getMessage());
+
+            // Return null to indicate shortening failure
+            return null;
+        }
+        try {
+            OutputStream os = connection.getOutputStream();
+            byte[] input = request_body.getBytes(StandardCharsets.UTF_8);
+            os.write(input, 0, input.length);
+        } catch (Exception e)   {
+            // Handle any IO exceptions that occur
+            Log.e("IO Error", e.getMessage(), e);
+
+            // Display an error message to the user using showToast function
+            showToast("IO Error: " + e.getMessage());
+
+            // Return null to indicate shortening failure
+            return null;
+        }
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
+            StringBuilder response = new StringBuilder();
+            Log.d("BufferReader Response:", String.valueOf(response));
+            String responseLine;
+            while ((responseLine = br.readLine()) != null) {
+                response.append(responseLine.trim());
+            }
+            response_string = response.toString();
+        } catch (Exception e)   {
+            // Handle any IO exceptions that occur
+            Log.e("BufferedReader Error:", e.getMessage(), e);
+
+            // Display an error message to the user using showToast function
+            showToast("BufferedReader Error:" + e.getMessage());
+
+            // Return null to indicate shortening failure
+            return null;
+        }
+        return response_string.substring(14, response_string.length() -2);
     }
 
 
