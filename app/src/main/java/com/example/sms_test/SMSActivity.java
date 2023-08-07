@@ -175,7 +175,7 @@ public class SMSActivity extends Activity {
                             shortenedUrl + "\n\nRegards,\nTwitch Live";
                 case "http://msn.com/":
                     return "MSN Daily Briefing: Click the link to read the top news stories of the day: " +
-                            shortenedUrl + "\n\nMSN News";
+                            shortenedUrl + "\n\nRegards,\nMSN News";
                 case "http://imdb.com/":
                     return "IMDb: Click the link to check out the latest movie trailers and reviews: " +
                             shortenedUrl + "\n\nRegards,\nIMDb Movie";
